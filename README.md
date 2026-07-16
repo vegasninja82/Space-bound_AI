@@ -1,124 +1,142 @@
 # SPACE_BOUND_AI
 
-## Python-Based Provider-Independent Multi-Track AI Reasoning Orchestration Engine
+SPACE_BOUND_AI is a small orchestration service and demo that runs multiple "tracks" (direct, validation, perspective) against pluggable model adapters and records metrics to a local SQLite storage. It provides a FastAPI backend and a small React dashboard (in web/) to view results.
 
-SPACE_BOUND_AI is an asynchronous Python AI orchestration framework designed to improve response quality by coordinating multiple reasoning stages before producing a final output.
+This README has been updated to accurately reflect repository structure, how to run the project locally, and what environment variables may be required.
 
-Instead of relying on a single model response, SPACE_BOUND_AI creates a structured reasoning pipeline that performs:
+## Stack
+- Language: Python 3.10+ (backend), TypeScript / React (frontend)
+- Frameworks: FastAPI (backend), Vite + React (frontend)
+- Notable libraries: pydantic, uvicorn, aiohttp, PyYAML
 
-- Direct response generation
-- Independent validation
-- Multi-perspective analysis
-- Confidence scoring
-- Response synthesis
-- Performance telemetry
+## Repository layout
 
-SPACE_BOUND_AI does not replace foundation models.
+Top-level files and directories you will care about:
 
-It provides an orchestration layer that coordinates, validates, measures, and improves AI workflows.
+- app/           Application code: Engine, Validator, Adapters, Metrics, Scheduler, etc.
+  - adapters/    Provider adapters (mock, openai, anthropic, gemini)
+- config/        YAML configuration for base, tracks, scheduler, dashboard
+- storage/       SQLite wrapper and DB initialization
+- util/          Utility modules (logger, helpers)
+- web/           React dashboard (package.json, src/, vite.config.ts)
+- tests/         Pytest test suite
+- main.py        FastAPI application entrypoint
+- requirements.txt  Python dependencies
+- LICENSE        Apache 2.0 license
 
----
+## How to run (local development)
 
-# Quick Start
+Prerequisites:
+- Python 3.10 or newer
+- Node 18+ and npm
+- (Optional) virtualenv/venv recommended
 
-## Prerequisites
-
-- Python 3.10+
-- Node.js 18+ (for building the dashboard)
-
-## Install
+1) Create and activate a Python virtual environment
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate   # macOS/Linux
+.\.venv\Scripts\activate  # Windows (PowerShell)
+```
+
+2) Install Python dependencies
+
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
-cd web && npm install && npm run build && cd ..
 ```
 
-## Run the server
+3) Build the frontend (from repo root)
 
 ```bash
-python main.py
+cd web
+npm ci
+npm run build
+cd ..
 ```
 
-This starts the FastAPI server on port 8000. Open http://localhost:8000 to access the dashboard.
+This produces a static build under `web/dist` that the FastAPI app will serve (if present).
 
-## Run the CLI demo
+4) Optional: compile Python files to check syntax
 
 ```bash
-python main.py demo
+python -m compileall .
 ```
 
----
+5) Run tests
 
-# Core Capabilities
-
-## Multi-Track Reasoning Pipeline
-
-SPACE_BOUND_AI runs multiple reasoning tracks concurrently.
-
-### Direct Track
-Generates the primary response.
-
-### Validation Track
-Evaluates:
-
-- Contradictions
-- Context drift
-- Hallucination risk
-- Reasoning consistency
-- Confidence score
-- Policy alignment
-
-### Perspective Engine
-
-Generates relevant analysis from specialized viewpoints:
-
-- Engineering
-- Scientific
-- Business
-- Economic
-- Security
-- Legal
-- Ethics
-- User Experience
-- Operations
-- Education
-- Risk Analysis
-- System Design
-
----
-
-# Architecture
-
-```
-main.py              Entry point (FastAPI server or CLI demo)
-app/
-  engine.py          Multi-track orchestration engine
-  baseline.py        Request context builder
-  scheduler.py       Track scheduling
-  merge.py           Output merge engine
-  validator.py       Response validation
-  metrics.py         Metrics recording
-  config.py          YAML config loader
-  adapters/          Provider adapters (mock, openai, anthropic, gemini)
-config/              YAML configuration files
-storage/             SQLite metrics storage
-util/                Logger utility
-web/                 React + Vite dashboard frontend
-benchmarks/          Benchmark utilities
-docs/                Architecture and design docs
+```bash
+PYTHONPATH=. pytest tests/ -v
 ```
 
-## API Endpoints
+6) Start the backend
 
-- `GET /health` - Health check
-- `GET /config` - Engine configuration
-- `GET /tracks` - Available reasoning tracks
-- `POST /chat` - Run the engine (body: `{"prompt": "...", "provider": "mock"}`)
-- `GET /metrics` - Recent run metrics
-- `GET /providers` - Available and active providers
+```bash
+# development: run uvicorn directly
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
 
----
+The app exposes these key endpoints (JSON):
+- GET /health      — service heartbeat
+- GET /providers   — active/available providers
+- GET /tracks      — configured orchestration tracks
+- GET /config      — configuration summary
+- GET /metrics     — recent metric records (from SQLite)
+- POST /chat       — run orchestration for a prompt
 
-# License
+Example POST /chat payload:
 
-See LICENSE file.
+```json
+{
+  "prompt": "Test SPACE_BOUND_AI full orchestration pipeline"
+}
+```
+
+If you omit `provider`, the default configured provider in `config/base.yml` is used (defaults to `mock`). The `mock` adapter requires no credentials and is used by the test-suite.
+
+## Configuration and environment variables
+
+- Config files live in `config/`:
+  - `base.yml` — base settings (provider, etc.)
+  - `tracks.yml` — track definitions (direct, validation, perspective)
+  - `scheduler.yml` — scheduler configuration
+  - `providers.yml` / `dashboard.yml` — dashboard/provider-specific settings
+
+- Adapters that call external LLM APIs (openai, anthropic, gemini) will likely require API keys in the environment. The project expects you to set provider-specific environment variables if you switch from the `mock` adapter. Common examples (NOT exhaustive):
+  - OPENAI_API_KEY
+  - ANTHROPIC_API_KEY
+  - GEMINI_API_KEY
+
+Tests and the default configuration use the mock adapter — you do not need API keys to run the test-suite.
+
+## Metrics / Storage
+
+Metrics are stored via the small SQLite wrapper in `storage/database.py`. By default it will create local files in the working directory as needed. Ensure the directory where you run the server has write permissions.
+
+## Frontend
+
+The frontend is a small React + Vite app in `web/`. `npm ci` installs dependencies deterministically from `package-lock.json`. `npm run build` outputs a production build to `web/dist` which the backend serves when present.
+
+## Tests
+
+The test-suite uses pytest and the FastAPI TestClient. Tests exercise the Engine, adapters (mock), Validator, MergeEngine, Scheduler, and the API endpoints via TestClient. Run with:
+
+```bash
+PYTHONPATH=. pytest tests/ -v
+```
+
+## License
+
+This project is licensed under the Apache License 2.0 — see `LICENSE` at the repository root.
+
+## Troubleshooting and common issues
+
+- If pytest fails with import errors, ensure you ran `pip install -r requirements.txt` and are running tests from the repository root with `PYTHONPATH=.` set.
+- If the frontend fails to build, confirm your Node.js and npm versions and run `npm ci` from the `web/` directory.
+- If adapters attempt to call external APIs and fail, switch to the `mock` provider in `config/base.yml` to run locally without credentials.
+
+## Want me to update anything else?
+If you would like, I can:
+- Add a GitHub Actions workflow to run the verification pipeline automatically.
+- Open a PR that updates the README only (if you grant write permissions or create a branch and allow me to push).
+
