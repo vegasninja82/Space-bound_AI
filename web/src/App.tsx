@@ -66,8 +66,9 @@ export default function App() {
     fetchMetrics();
   }, [fetchConfig, fetchHealth, fetchMetrics]);
 
-  const runEngine = async () => {
-    if (!prompt.trim()) return;
+  const runEngine = async (promptText?: string) => {
+    const p = promptText !== undefined ? promptText : prompt;
+    if (!p || !p.trim()) return;
     setLoading(true);
     setError("");
     setResult(null);
@@ -75,7 +76,7 @@ export default function App() {
       const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, provider }),
+        body: JSON.stringify({ prompt: p, provider }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -89,6 +90,12 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const runDemo = async () => {
+    // Use mock provider for demo to avoid external API keys
+    setProvider("mock");
+    await runEngine("Test SPACE_BOUND_AI full orchestration pipeline");
   };
 
   const lastConfidence = result?.validation.confidence ?? metrics[0]?.data.validation?.confidence ?? 0;
@@ -131,9 +138,14 @@ export default function App() {
                 }}
               />
             </div>
-            <button className="btn" onClick={runEngine} disabled={loading || !prompt.trim()}>
-              {loading ? "Running..." : "Run Engine"}
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn" onClick={() => runEngine()} disabled={loading || !prompt.trim()}>
+                {loading ? "Running..." : "Run Engine"}
+              </button>
+              <button className="btn" onClick={runDemo} disabled={loading}>
+                Run Demo
+              </button>
+            </div>
 
             {error && <div className="error" style={{ marginTop: "1rem" }}>{error}</div>}
 
