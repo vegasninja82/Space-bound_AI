@@ -1,6 +1,11 @@
 direct:
   provider: mock
+  timeout: 3
+
 validation:
   provider: mock
+  timeout: 3
+
 perspective:
   provider: mock
+  timeout: 5
