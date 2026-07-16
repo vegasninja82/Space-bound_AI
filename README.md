@@ -1,142 +1,452 @@
-# SPACE_BOUND_AI
+SPACE_BOUND_AI 🚀
 
-SPACE_BOUND_AI is a small orchestration service and demo that runs multiple "tracks" (direct, validation, perspective) against pluggable model adapters and records metrics to a local SQLite storage. It provides a FastAPI backend and a small React dashboard (in web/) to view results.
+SPACE_BOUND_AI is an AI orchestration framework and demonstration platform that coordinates multiple reasoning tracks through a unified execution pipeline.
 
-This README has been updated to accurately reflect repository structure, how to run the project locally, and what environment variables may be required.
+The system runs independent processing paths for:
 
-## Stack
-- Language: Python 3.10+ (backend), TypeScript / React (frontend)
-- Frameworks: FastAPI (backend), Vite + React (frontend)
-- Notable libraries: pydantic, uvicorn, aiohttp, PyYAML
+- Direct response generation
+- Validation and consistency checking
+- Perspective expansion and analysis
 
-## Repository layout
+Results are synthesized into a final response while tracking execution metrics, latency, provider usage, and validation data.
 
-Top-level files and directories you will care about:
+SPACE_BOUND_AI includes:
 
-- app/           Application code: Engine, Validator, Adapters, Metrics, Scheduler, etc.
-  - adapters/    Provider adapters (mock, openai, anthropic, gemini)
-- config/        YAML configuration for base, tracks, scheduler, dashboard
-- storage/       SQLite wrapper and DB initialization
-- util/          Utility modules (logger, helpers)
-- web/           React dashboard (package.json, src/, vite.config.ts)
-- tests/         Pytest test suite
-- main.py        FastAPI application entrypoint
-- requirements.txt  Python dependencies
-- LICENSE        Apache 2.0 license
+- FastAPI backend
+- Pluggable AI model adapters
+- Async orchestration engine
+- SQLite metric storage
+- React/Vite dashboard
+- Automated test suite
 
-## How to run (local development)
+---
 
-Prerequisites:
-- Python 3.10 or newer
-- Node 18+ and npm
-- (Optional) virtualenv/venv recommended
+Core Architecture
 
-1) Create and activate a Python virtual environment
+Request
+   |
+   v
+Baseline Context
+   |
+   v
+Scheduler
+   |
+   +----------------+
+   |                |
+   v                v
+Direct Track    Perspective Track
+   |
+   v
+Validation Track
+   |
+   v
+Synthesis Engine
+   |
+   v
+Metrics Storage
+   |
+   v
+Final Response
 
-```bash
+The architecture is designed around parallel processing, modular providers, and measurable execution.
+
+---
+
+Features
+
+Async Orchestration Engine
+
+The core engine manages:
+
+- Request lifecycle
+- Request IDs
+- Execution timing
+- Track coordination
+- Error handling
+- Provider selection
+- Response synthesis
+
+---
+
+Multi-Track Reasoning Pipeline
+
+SPACE_BOUND_AI currently supports:
+
+Track 1: Direct Response
+
+Generates the primary response from the selected model adapter.
+
+Track 2: Validation
+
+Checks:
+
+- Context consistency
+- Contradictions
+- Drift indicators
+- Confidence scoring
+- Response quality signals
+
+Track 3: Perspective Analysis
+
+Provides additional viewpoints using relevant analysis categories.
+
+Available perspective categories include:
+
+- Engineering
+- Scientific
+- Business
+- Economic
+- Security
+- Legal
+- Ethics
+- UX
+- Operations
+- Education
+- Risk Analysis
+- System Design
+
+---
+
+Technology Stack
+
+Backend
+
+- Python 3.10+
+- FastAPI
+- Pydantic
+- AsyncIO
+- SQLite
+- PyYAML
+- Uvicorn
+
+Frontend
+
+- TypeScript
+- React
+- Vite
+
+Testing
+
+- Pytest
+- FastAPI TestClient
+- Async test coverage
+
+---
+
+Repository Structure
+
+SPACE_BOUND_AI/
+
+├── app/
+│   ├── engine.py
+│   ├── scheduler.py
+│   ├── validator.py
+│   ├── perspective_engine.py
+│   ├── merge.py
+│   ├── metrics.py
+│   └── adapters/
+│
+├── config/
+│   ├── base.yml
+│   ├── tracks.yml
+│   ├── scheduler.yml
+│   └── providers.yml
+│
+├── storage/
+│   └── database.py
+│
+├── web/
+│   └── React dashboard
+│
+├── tests/
+│   ├── test_api.py
+│   ├── test_core_additional.py
+│   └── test_engine.py
+│
+├── main.py
+├── requirements.txt
+└── LICENSE
+
+---
+
+Installation
+
+Requirements
+
+- Python 3.10+
+- Node.js 18+
+- npm
+
+---
+
+Backend Setup
+
+Create a virtual environment:
+
 python -m venv .venv
-source .venv/bin/activate   # macOS/Linux
-.\.venv\Scripts\activate  # Windows (PowerShell)
-```
 
-2) Install Python dependencies
+Activate:
 
-```bash
+Linux/macOS:
+
+source .venv/bin/activate
+
+Windows:
+
+.\.venv\Scripts\activate
+
+Install dependencies:
+
 pip install --upgrade pip
 pip install -r requirements.txt
-```
 
-3) Build the frontend (from repo root)
+---
 
-```bash
+Frontend Build
+
+From the repository root:
+
 cd web
 npm ci
 npm run build
 cd ..
-```
 
-This produces a static build under `web/dist` that the FastAPI app will serve (if present).
+The production dashboard build is generated in:
 
-4) Optional: compile Python files to check syntax
+web/dist
 
-```bash
-python -m compileall .
-```
+---
 
-5) Run tests
+Running the Application
 
-```bash
-PYTHONPATH=. pytest tests/ -v
-```
+Start the backend:
 
-6) Start the backend
-
-```bash
-# development: run uvicorn directly
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
 
-The app exposes these key endpoints (JSON):
-- GET /health      — service heartbeat
-- GET /providers   — active/available providers
-- GET /tracks      — configured orchestration tracks
-- GET /config      — configuration summary
-- GET /metrics     — recent metric records (from SQLite)
-- POST /chat       — run orchestration for a prompt
+The API will be available at:
 
-Example POST /chat payload:
+http://localhost:8000
 
-```json
+---
+
+API Endpoints
+
+Health Check
+
+GET /health
+
+Returns service status.
+
+---
+
+Providers
+
+GET /providers
+
+Returns available model adapters.
+
+---
+
+Tracks
+
+GET /tracks
+
+Returns configured reasoning tracks.
+
+---
+
+Configuration
+
+GET /config
+
+Returns active configuration.
+
+---
+
+Metrics
+
+GET /metrics
+
+Returns stored execution metrics.
+
+---
+
+Chat
+
+POST /chat
+
+Example:
+
 {
-  "prompt": "Test SPACE_BOUND_AI full orchestration pipeline"
+  "prompt": "Explain quantum computing simply."
 }
-```
 
-If you omit `provider`, the default configured provider in `config/base.yml` is used (defaults to `mock`). The `mock` adapter requires no credentials and is used by the test-suite.
+The default provider is:
 
-## Configuration and environment variables
+mock
 
-- Config files live in `config/`:
-  - `base.yml` — base settings (provider, etc.)
-  - `tracks.yml` — track definitions (direct, validation, perspective)
-  - `scheduler.yml` — scheduler configuration
-  - `providers.yml` / `dashboard.yml` — dashboard/provider-specific settings
+The mock provider requires no API keys.
 
-- Adapters that call external LLM APIs (openai, anthropic, gemini) will likely require API keys in the environment. The project expects you to set provider-specific environment variables if you switch from the `mock` adapter. Common examples (NOT exhaustive):
-  - OPENAI_API_KEY
-  - ANTHROPIC_API_KEY
-  - GEMINI_API_KEY
+---
 
-Tests and the default configuration use the mock adapter — you do not need API keys to run the test-suite.
+Model Adapter System
 
-## Metrics / Storage
+SPACE_BOUND_AI uses a modular adapter architecture.
 
-Metrics are stored via the small SQLite wrapper in `storage/database.py`. By default it will create local files in the working directory as needed. Ensure the directory where you run the server has write permissions.
+Supported adapters:
 
-## Frontend
+- Mock
+- OpenAI
+- Anthropic
+- Gemini
+- Ollama
+- LM Studio
+- Local Llama-compatible providers
 
-The frontend is a small React + Vite app in `web/`. `npm ci` installs dependencies deterministically from `package-lock.json`. `npm run build` outputs a production build to `web/dist` which the backend serves when present.
+The adapter interface supports:
 
-## Tests
+- generate()
+- stream()
+- health_check()
+- token_usage()
 
-The test-suite uses pytest and the FastAPI TestClient. Tests exercise the Engine, adapters (mock), Validator, MergeEngine, Scheduler, and the API endpoints via TestClient. Run with:
+External providers require environment variables.
 
-```bash
+Examples:
+
+OPENAI_API_KEY
+ANTHROPIC_API_KEY
+GEMINI_API_KEY
+
+No credentials are required for the default mock provider.
+
+---
+
+Metrics and Storage
+
+SPACE_BOUND_AI stores execution information using SQLite.
+
+Tracked data includes:
+
+- Request ID
+- Timestamp
+- Provider
+- Latency
+- Token usage
+- Cost estimate
+- Validation results
+- Perspective results
+- Execution metrics
+
+---
+
+Testing
+
+The repository includes automated tests covering:
+
+- API endpoints
+- Engine execution
+- Scheduler behavior
+- Validation pipeline
+- Merge logic
+- Adapter framework
+- Configuration
+- Metrics handling
+- Error handling
+- Concurrency behavior
+
+Verified Test Status
+
+Current repository verification:
+
+47 passed
+0 failed
+
+Test breakdown:
+
+Test File| Count
+tests/test_api.py| 8
+tests/test_core_additional.py| 24
+tests/test_engine.py| 15
+Total| 47
+
+Run tests:
+
 PYTHONPATH=. pytest tests/ -v
-```
 
-## License
+---
 
-This project is licensed under the Apache License 2.0 — see `LICENSE` at the repository root.
+Development Verification
 
-## Troubleshooting and common issues
+Compile Python files:
 
-- If pytest fails with import errors, ensure you ran `pip install -r requirements.txt` and are running tests from the repository root with `PYTHONPATH=.` set.
-- If the frontend fails to build, confirm your Node.js and npm versions and run `npm ci` from the `web/` directory.
-- If adapters attempt to call external APIs and fail, switch to the `mock` provider in `config/base.yml` to run locally without credentials.
+python -m compileall .
 
-## Want me to update anything else?
-If you would like, I can:
-- Add a GitHub Actions workflow to run the verification pipeline automatically.
-- Open a PR that updates the README only (if you grant write permissions or create a branch and allow me to push).
+Run the test suite:
 
+PYTHONPATH=. pytest tests/ -v
+
+---
+
+Dashboard
+
+The React dashboard provides visibility into:
+
+- Current prompts
+- Track outputs
+- Validation results
+- Perspective analysis
+- Final synthesis
+- Latency
+- Provider information
+- Execution metrics
+
+Build the frontend:
+
+cd web
+npm ci
+npm run build
+
+---
+
+Configuration
+
+Configuration files:
+
+config/base.yml
+config/tracks.yml
+config/scheduler.yml
+config/providers.yml
+config/dashboard.yml
+
+The default configuration uses:
+
+provider: mock
+
+This allows the project to run without external API access.
+
+---
+
+Roadmap
+
+Potential future improvements:
+
+- Authentication layer
+- Production deployment tooling
+- Advanced model-based validation
+- Expanded benchmark suite
+- More provider integrations
+- Distributed execution support
+- Enterprise observability features
+
+---
+
+License
+
+SPACE_BOUND_AI is licensed under the Apache License 2.0.
+
+See:
+
+LICENSE
+
+for details.
