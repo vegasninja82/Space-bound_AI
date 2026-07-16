@@ -1,6 +1,8 @@
 class MergeEngine:
     def merge(self, track_outputs):
         # deterministic merge: prefer 'direct' > 'perspective' > first
+        if not track_outputs:
+            return {"answer": "", "sources": []}
         mapping = {t['track']: t for t in track_outputs}
         if 'direct' in mapping:
             chosen = mapping['direct']
