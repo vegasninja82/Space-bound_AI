@@ -1,0 +1,6 @@
+direct:
+  provider: mock
+validation:
+  provider: mock
+perspective:
+  provider: mock

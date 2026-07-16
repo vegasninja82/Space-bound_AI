@@ -1,2 +1,9 @@
-# Space-bound_AI
-Provider-independent multi-track reasoning engine. Runs Direct, Validation, and Perspective tracks in parallel with a 3s afterthought window. Merges outputs for 93% confidence, 2% drift. Every request measured. No hallucinations. Infrastructure, not wrapper.
+SPACE_BOUND_AI
+
+Provider-independent multi-track reasoning engine.
+
+One command to run the demo:
+
+  python main.py
+
+Repository contains a mock provider so no API keys are required.
