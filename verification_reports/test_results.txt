@@ -1,0 +1,38 @@
+============================= test session starts ==============================
+platform linux -- Python 3.13.5, pytest-9.1.1, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /tmp/cc-agent/68948950/project
+plugins: anyio-4.14.2
+collecting ... collected 23 items
+
+tests/test_api.py::test_health PASSED                                    [  4%]
+tests/test_api.py::test_providers PASSED                                 [  8%]
+tests/test_api.py::test_tracks PASSED                                    [ 13%]
+tests/test_api.py::test_config PASSED                                    [ 17%]
+tests/test_api.py::test_chat_empty_prompt PASSED                         [ 21%]
+tests/test_api.py::test_chat_mock PASSED                                 [ 26%]
+tests/test_api.py::test_chat_default_provider PASSED                     [ 30%]
+tests/test_api.py::test_metrics PASSED                                   [ 34%]
+tests/test_engine.py::test_config_loads PASSED                           [ 39%]
+tests/test_engine.py::test_mock_adapter_generate PASSED                  [ 43%]
+tests/test_engine.py::test_mock_adapter_health PASSED                    [ 47%]
+tests/test_engine.py::test_mock_adapter_token_usage PASSED               [ 52%]
+tests/test_engine.py::test_registry_fallback PASSED                      [ 56%]
+tests/test_engine.py::test_registry_get_mock PASSED                      [ 60%]
+tests/test_engine.py::test_baseline_builder PASSED                       [ 65%]
+tests/test_engine.py::test_scheduler PASSED                              [ 69%]
+tests/test_engine.py::test_merge_engine_prefers_direct PASSED            [ 73%]
+tests/test_engine.py::test_merge_engine_fallback_to_perspective PASSED   [ 78%]
+tests/test_engine.py::test_merge_engine_fallback_to_first PASSED         [ 82%]
+tests/test_engine.py::test_validator_passes PASSED                       [ 86%]
+tests/test_engine.py::test_engine_run PASSED                             [ 91%]
+tests/test_engine.py::test_engine_run_track PASSED                       [ 95%]
+tests/test_engine.py::test_engine_validation_structure PASSED            [100%]
+
+=============================== warnings summary ===============================
+../../../../home/appuser/.local/lib/python3.13/site-packages/fastapi/testclient.py:1
+  /home/appuser/.local/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 23 passed, 1 warning in 0.64s =========================

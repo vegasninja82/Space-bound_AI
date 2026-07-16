@@ -39,14 +39,14 @@ export default function App() {
 
   const fetchConfig = useCallback(async () => {
     try {
-      const res = await fetch("/api/config");
+      const res = await fetch("/config");
       if (res.ok) setConfig(await res.json());
     } catch {}
   }, []);
 
   const fetchHealth = useCallback(async () => {
     try {
-      const res = await fetch("/api/health");
+      const res = await fetch("/health");
       setHealth(res.ok);
     } catch {
       setHealth(false);
@@ -55,7 +55,7 @@ export default function App() {
 
   const fetchMetrics = useCallback(async () => {
     try {
-      const res = await fetch("/api/metrics");
+      const res = await fetch("/metrics");
       if (res.ok) setMetrics(await res.json());
     } catch {}
   }, []);
@@ -72,7 +72,7 @@ export default function App() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/run", {
+      const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, provider }),
