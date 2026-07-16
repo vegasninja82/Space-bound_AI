@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 spacebound.db
 .env
+metrics.jsonl
+node_modules/
+web/dist/
