@@ -90,9 +90,8 @@ Generates relevant analysis from specialized viewpoints:
 # Architecture
 
 ```
-main.py              Entry point (server or CLI demo)
+main.py              Entry point (FastAPI server or CLI demo)
 app/
-  api.py            FastAPI server with REST endpoints
   engine.py          Multi-track orchestration engine
   baseline.py        Request context builder
   scheduler.py       Track scheduling
@@ -111,11 +110,12 @@ docs/                Architecture and design docs
 
 ## API Endpoints
 
-- `GET /api/health` - Health check
-- `GET /api/config` - Engine configuration
-- `GET /api/tracks` - Available reasoning tracks
-- `POST /api/run` - Run the engine (body: `{"prompt": "...", "provider": "mock"}`)
-- `GET /api/metrics` - Recent run metrics
+- `GET /health` - Health check
+- `GET /config` - Engine configuration
+- `GET /tracks` - Available reasoning tracks
+- `POST /chat` - Run the engine (body: `{"prompt": "...", "provider": "mock"}`)
+- `GET /metrics` - Recent run metrics
+- `GET /providers` - Available and active providers
 
 ---
 
