@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="620" viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title>SPACE_BOUND_AI architecture</title>
+  <style>
+    .box { fill:#f4f8ff; stroke:#0b5fff; stroke-width:2px; rx:8; ry:8; }
+    .track { fill:#e9fff3; stroke:#00cc66; stroke-width:2px; rx:6; ry:6; }
+    .label { font-family: Inter, Arial, sans-serif; font-size:16px; fill:#0b2b4a; }
+    .small { font-size:12px; fill:#233e5a; }
+    .arrow { stroke:#1f3f80; stroke-width:2px; fill:none; marker-end:url(#arrow); }
+  </style>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#1f3f80" />
+    </marker>
+  </defs>
+
+  <!-- Request -->
+  <rect x="40" y="40" width="220" height="60" class="box" />
+  <text x="150" y="78" text-anchor="middle" class="label">Request</text>
+
+  <!-- Baseline Context -->
+  <rect x="300" y="40" width="260" height="60" class="box" />
+  <text x="430" y="78" text-anchor="middle" class="label">Baseline Context</text>
+  <path class="arrow" d="M260 70 L300 70" />
+
+  <!-- Scheduler -->
+  <rect x="620" y="40" width="240" height="60" class="box" />
+  <text x="740" y="78" text-anchor="middle" class="label">Scheduler</text>
+  <path class="arrow" d="M560 70 L620 70" />
+
+  <!-- Tracks -->
+  <rect x="60" y="160" width="260" height="80" class="track" />
+  <text x="190" y="210" text-anchor="middle" class="label">Direct Track</text>
+
+  <rect x="370" y="160" width="260" height="80" class="track" />
+  <text x="500" y="210" text-anchor="middle" class="label">Validation Track</text>
+
+  <rect x="680" y="160" width="260" height="80" class="track" />
+  <text x="810" y="210" text-anchor="middle" class="label">Perspective Track</text>
+
+  <path class="arrow" d="M740 100 L740 160" />
+  <path class="arrow" d="M180 100 L180 160" />
+  <path class="arrow" d="M440 100 L440 160" />
+
+  <!-- Synthesis -->
+  <rect x="300" y="280" width="400" height="90" class="box" />
+  <text x="500" y="335" text-anchor="middle" class="label">Synthesis Engine</text>
+
+  <path class="arrow" d="M190 240 L380 280" />
+  <path class="arrow" d="M500 240 L500 280" />
+  <path class="arrow" d="M820 240 L620 280" />
+
+  <!-- Metrics Storage -->
+  <rect x="300" y="400" width="200" height="60" class="box" />
+  <text x="400" y="438" text-anchor="middle" class="label">Metrics Storage</text>
+
+  <path class="arrow" d="M500 370 L500 400" />
+
+  <!-- Final Response -->
+  <rect x="560" y="400" width="220" height="60" class="box" />
+  <text x="670" y="438" text-anchor="middle" class="label">Final Response</text>
+  <path class="arrow" d="M500 430 L560 430" />
+
+  <!-- Footer note -->
+  <text x="50" y="580" class="small">SPACE_BOUND_AI — multi-track orchestration and synthesis (diagram)</text>
+</svg>
