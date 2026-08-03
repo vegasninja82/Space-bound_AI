@@ -1,7 +1,23 @@
 [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/OtisLeesr)
 
 
-SPACE_BOUND_AI 🚀
+🚀 Live Demo
+
+Try the fully functional cloud deployment of SPACE_BOUND_AI:
+
+https://prism-track-app.lovable.app
+
+The live dashboard includes:
+
+- Engine Run interface
+- Multi-perspective analysis
+- Configurable model settings
+- Run history and telemetry
+- Coherence scoring
+- Perspective lens controls
+- Metrics and execution tracking
+
+The demo allows users to interact with the orchestration engine and observe the complete analysis pipeline in operation.
 
 Multi-Track AI Orchestration Engine for More Reliable AI Responses
 
