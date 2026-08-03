@@ -1,5 +1,12 @@
 [![Donate via PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?logo=paypal&logoColor=white)](https://paypal.me/OtisLeesr)
 
+# SPACE_BOUND_AI 🚀
+
+## Live Demo
+
+Try the fully functional cloud deployment:
+
+https://prism-track-app.lovable.app
 
 🚀 Live Demo
 
