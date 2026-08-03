@@ -2,12 +2,13 @@ import pytest
 import asyncio
 from app.config import Config
 from app.engine import Engine
-from app.adapters.registry import AdapterRegistry
+from app.adapters.registry import get_adapter, reset_cache
 from app.adapters.mock_adapter import MockAdapter
 from app.merge import MergeEngine
-from app.validator import Validator
+from app.validator import validate
 from app.baseline import BaselineBuilder
 from app.scheduler import Scheduler
+from app.perspective_engine import analyze, available_perspectives
 from util.logger import Logger
 
 
@@ -38,14 +39,16 @@ def test_config_loads(config):
     assert "perspective" in config.tracks
 
 
-def test_mock_adapter_generate(adapter):
-    result = adapter.generate("test prompt")
-    assert "MOCK_ANSWER" in result
-    assert "test prompt" in result
+@pytest.mark.asyncio
+async def test_mock_adapter_generate(adapter):
+    result = await adapter.generate("test prompt")
+    assert isinstance(result, str)
+    assert len(result) > 0
 
 
-def test_mock_adapter_health(adapter):
-    assert adapter.health_check() is True
+@pytest.mark.asyncio
+async def test_mock_adapter_health(adapter):
+    assert await adapter.health_check() is True
 
 
 def test_mock_adapter_token_usage(adapter):
@@ -54,15 +57,17 @@ def test_mock_adapter_token_usage(adapter):
     assert "completion_tokens" in usage
 
 
-def test_registry_fallback(config):
-    registry = AdapterRegistry(config)
-    adapter = registry.get("nonexistent")
+@pytest.mark.asyncio
+async def test_registry_fallback():
+    reset_cache()
+    adapter = await get_adapter("nonexistent")
     assert isinstance(adapter, MockAdapter)
 
 
-def test_registry_get_mock(config):
-    registry = AdapterRegistry(config)
-    adapter = registry.get("mock")
+@pytest.mark.asyncio
+async def test_registry_get_mock():
+    reset_cache()
+    adapter = await get_adapter("mock")
     assert isinstance(adapter, MockAdapter)
 
 
@@ -113,34 +118,47 @@ def test_merge_engine_fallback_to_first():
     assert result["answer"] == "val answer"
 
 
-def test_validator_passes():
-    validator = Validator()
-    result = validator.validate({"answer": "test"})
-    assert result["pass"] is True
-    assert "confidence" in result
-    assert "drift" in result
+@pytest.mark.asyncio
+async def test_validator_passes(adapter):
+    result = await validate("What is 2+2?", "The answer is 4.", adapter, second_sample=False)
+    assert result.passed is True
+    assert isinstance(result.confidence, int)
+    assert isinstance(result.drift, float)
 
 
-def test_engine_run(engine):
-    result = asyncio.run(engine.run("test request"))
+@pytest.mark.asyncio
+async def test_engine_run(engine):
+    result = await engine.run("test request")
     assert "answer" in result
     assert "validation" in result
     assert "timing" in result
     assert "total_ms" in result["timing"]
-    assert "MOCK_ANSWER" in result["answer"]
 
 
-def test_engine_run_track(engine):
+@pytest.mark.asyncio
+async def test_engine_run_track(engine):
     ctx = {"request": "hello", "meta": {"now": 123}}
-    result = asyncio.run(engine.run_track("direct", ctx))
+    result = await engine.run_track("direct", ctx)
     assert result["track"] == "direct"
     assert "answer" in result
 
 
-def test_engine_validation_structure(engine):
-    result = asyncio.run(engine.run("test"))
+@pytest.mark.asyncio
+async def test_engine_validation_structure(engine):
+    result = await engine.run("test")
     v = result["validation"]
     assert "pass" in v
     assert "confidence" in v
     assert "drift" in v
     assert "notes" in v
+
+
+def test_perspectives_count():
+    assert len(available_perspectives()) == 12
+
+
+@pytest.mark.asyncio
+async def test_perspectives_run(adapter):
+    results = await analyze("test", adapter, mode="subset", subset=["engineering"])
+    assert len(results) == 1
+    assert results[0].name == "engineering"

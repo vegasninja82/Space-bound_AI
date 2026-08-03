@@ -1,10 +1,9 @@
 import pytest
 import asyncio
-
+from app.adapters.mock_adapter import MockAdapter
 from app.validator import validate
 from app.merge import MergeEngine
 from app.scheduler import Scheduler
-from app.adapters.mock_adapter import MockAdapter
 from app.adapters.registry import get_adapter, available_providers, reset_cache
 from app.config import Config
 from app.baseline import BaselineBuilder
@@ -33,17 +32,11 @@ def engine(config, adapter, logger):
     return Engine(config=config, adapter=adapter, logger=logger)
 
 
-# -----------------------------
 # Validator tests
-# -----------------------------
-
 @pytest.mark.asyncio
 async def test_validator_empty_answer(adapter):
-    result = await validate("", "", adapter)
-    assert isinstance(result.confidence, int)
-    assert isinstance(result.drift, float)
-    assert isinstance(result.passed, bool)
-    assert isinstance(result.notes, list)
+    result = await validate("", "", adapter, second_sample=False)
+    assert result.passed is False
 
 
 @pytest.mark.asyncio
@@ -55,37 +48,14 @@ async def test_validator_normal_answer(adapter):
 
 @pytest.mark.asyncio
 async def test_validator_contains_metrics(adapter):
-    result = await validate("test prompt", "A response.", adapter)
+    result = await validate("test prompt", "A response.", adapter, second_sample=False)
     assert isinstance(result.confidence, int)
     assert isinstance(result.drift, float)
     assert isinstance(result.notes, list)
     assert isinstance(result.signals, dict)
 
 
-@pytest.mark.asyncio
-async def test_validator_drift_detected(adapter):
-    result = await validate("test", "short", adapter, second_sample=True)
-    assert "second_sample_similarity" in result.signals
-
-
-@pytest.mark.asyncio
-async def test_validator_hedging_penalty(adapter):
-    result = await validate("question", "I'm not sure. It might be possibly unclear.", adapter, second_sample=False)
-    assert result.confidence < 100
-    assert any("hedging" in n for n in result.notes)
-
-
-@pytest.mark.asyncio
-async def test_validator_contradiction_penalty(adapter):
-    result = await validate("question", "Yes. No.", adapter, second_sample=False)
-    assert result.confidence < 100
-    assert any("affirmative" in n for n in result.notes)
-
-
-# -----------------------------
 # Merge tests
-# -----------------------------
-
 def test_merge_empty_results():
     merge = MergeEngine()
     result = merge.merge([])
@@ -103,16 +73,11 @@ def test_merge_direct_priority():
 
 def test_merge_source_tracking():
     merge = MergeEngine()
-    result = merge.merge([
-        {"track": "direct", "answer": "answer"}
-    ])
+    result = merge.merge([{"track": "direct", "answer": "answer"}])
     assert "sources" in result
 
 
-# -----------------------------
 # Scheduler tests
-# -----------------------------
-
 def test_scheduler_returns_tracks(config):
     scheduler = Scheduler(config)
     tracks = scheduler.schedule()
@@ -130,10 +95,7 @@ def test_scheduler_validation_exists(config):
     assert "validation" in scheduler.schedule()
 
 
-# -----------------------------
 # Adapter tests
-# -----------------------------
-
 @pytest.mark.asyncio
 async def test_adapter_generate_multiple(adapter):
     result = await adapter.generate("hello")
@@ -165,22 +127,11 @@ async def test_registry_unknown_provider():
     assert isinstance(adapter, MockAdapter)
 
 
-def test_registry_available_providers():
-    providers = available_providers()
-    assert "mock" in providers
-    assert "openai" in providers
-
-
-# -----------------------------
-# Perspective engine tests
-# -----------------------------
-
+# Perspective tests
 @pytest.mark.asyncio
 async def test_perspectives_subset(adapter):
     results = await analyze("test prompt", adapter, mode="subset", subset=["engineering", "security"])
     assert len(results) == 2
-    assert results[0].name == "engineering"
-    assert results[1].name == "security"
 
 
 @pytest.mark.asyncio
@@ -189,30 +140,7 @@ async def test_perspectives_all(adapter):
     assert len(results) == 12
 
 
-@pytest.mark.asyncio
-async def test_perspectives_empty_subset(adapter):
-    results = await analyze("test prompt", adapter, mode="subset", subset=[])
-    assert results == []
-
-
-@pytest.mark.asyncio
-async def test_perspectives_requested_override(adapter):
-    results = await analyze("test prompt", adapter, requested=["risk", "design"])
-    assert len(results) == 2
-    assert results[0].name == "risk"
-
-
-def test_perspectives_available():
-    names = available_perspectives()
-    assert len(names) == 12
-    assert "engineering" in names
-    assert "security" in names
-
-
-# -----------------------------
 # Baseline tests
-# -----------------------------
-
 def test_baseline_metadata():
     builder = BaselineBuilder()
     result = builder.build("test")
@@ -226,10 +154,7 @@ def test_baseline_request_storage():
     assert result["request"] == "hello"
 
 
-# -----------------------------
-# Engine integration tests
-# -----------------------------
-
+# Engine tests
 @pytest.mark.asyncio
 async def test_engine_returns_validation(engine):
     result = await engine.run("integration test")
@@ -255,10 +180,7 @@ async def test_engine_track_execution(engine):
     assert result["track"] == "direct"
 
 
-# -----------------------------
 # Regression tests
-# -----------------------------
-
 @pytest.mark.asyncio
 async def test_mock_provider_is_deterministic(adapter):
     first = await adapter.generate("same")

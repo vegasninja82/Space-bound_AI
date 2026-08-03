@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from main import app
+from app.api import app
 
 
 @pytest.fixture
@@ -23,6 +23,14 @@ def test_providers(client):
     assert "active" in data
     assert "available" in data
     assert "mock" in data["available"]
+
+
+def test_perspectives_endpoint(client):
+    res = client.get("/perspectives")
+    assert res.status_code == 200
+    data = res.json()
+    assert "available" in data
+    assert len(data["available"]) == 12
 
 
 def test_tracks(client):
@@ -54,7 +62,6 @@ def test_chat_mock(client):
     assert "answer" in data
     assert "validation" in data
     assert "timing" in data
-    assert "MOCK_ANSWER" in data["answer"]
 
 
 def test_chat_default_provider(client):

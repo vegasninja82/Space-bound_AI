@@ -1,140 +1,148 @@
-import asyncio, time
+"""
+Main orchestration engine. Wires together the adapter, scheduler,
+validator, perspective engine, merge engine, and ZeroHourGate into the
+full pipeline the /chat endpoint calls.
+
+Now uses the function-based APIs from registry, validator, and
+perspective_engine instead of the old class-based ones.
+"""
+from __future__ import annotations
+
+import asyncio
+import time
+
+from app.adapters.base import ProviderAdapter
 from app.baseline import BaselineBuilder
-from app.scheduler import Scheduler
-from app.merge import MergeEngine
-from app.validator import Validator
-from app.metrics import MetricsRecorder
-from app.perspective_engine import PerspectiveEngine
 from app.crucible import ZeroHourGate
+from app.merge import MergeEngine
+from app.models import ValidationResult
+from app.perspective_engine import analyze as run_perspectives
+from app.perspective_engine import available_perspectives
+from app.scheduler import Scheduler
+from app.storage import MetricsRecorder
+from app.validator import validate as run_validation
+
 
 class Engine:
-    def __init__(self, config, adapter, logger):
+    def __init__(self, config, adapter: ProviderAdapter, logger=None):
         self.config = config
         self.adapter = adapter
         self.logger = logger
         self.baseline = BaselineBuilder()
         self.scheduler = Scheduler(config)
         self.merge = MergeEngine()
-        self.validator = Validator()
         self.metrics = MetricsRecorder()
-        self.perspective_engine = PerspectiveEngine(adapter=adapter)
         self.zero_hour_gate = ZeroHourGate()
 
-    async def run_track(self, track_name, ctx):
-        """Execute a single reasoning track.
-        
-        Args:
-            track_name: Name of the track (direct, validation, perspective)
-            ctx: Baseline context with request and metadata
-        
-        Returns:
-            Dict with track name and answer
-        """
+    async def run_track(self, track_name: str, ctx: dict) -> dict:
+        """Execute a single reasoning track."""
+        request_text = ctx["request"]
+
         if track_name == "perspective":
-            # Perspective track uses the perspective engine for multi-viewpoint analysis
-            try:
-                perspective_result = await self.perspective_engine.analyze(
-                    ctx['request'],
-                    context=ctx
-                )
-                # Format perspective output as answer
-                perspectives_summary = ", ".join(
-                    f"{p}: {perspective_result['perspectives'][p]['analysis']}"
-                    for p in list(perspective_result['perspectives'].keys())[:3]  # Top 3 perspectives
-                )
-                return {"track": track_name, "answer": perspectives_summary}
-            except Exception as e:
-                # Fallback to basic adapter if perspective analysis fails
-                answer = self.adapter.generate(f"{track_name}:{ctx['request']}")
+            perspectives_cfg = getattr(self.config, "perspectives", {})
+            mode = perspectives_cfg.get("mode", "subset")
+            subset = perspectives_cfg.get("subset", [])
+            results = await run_perspectives(
+                request_text,
+                self.adapter,
+                mode=mode,
+                subset=subset,
+            )
+            if not results:
+                answer = await self.adapter.generate(f"perspective:{request_text}")
                 return {"track": track_name, "answer": answer}
+            summary_parts = [f"{r.name}: {r.summary}" for r in results[:3]]
+            return {"track": track_name, "answer": "; ".join(summary_parts)}
         else:
-            # Direct and validation tracks use the adapter
-            answer = self.adapter.generate(f"{track_name}:{ctx['request']}")
+            framing = f"{track_name} track" if track_name != "direct" else ""
+            answer = await self.adapter.generate(request_text, framing=framing)
             return {"track": track_name, "answer": answer}
 
-    async def run(self, request_text):
-        """Execute the full orchestration pipeline.
-        
-        Orchestrates multiple tracks, validates results, applies perspective analysis,
-        and optionally enforces ZeroHourGate collision detection before returning the final response.
-        
-        Args:
-            request_text: User prompt/request
-        
-        Returns:
-            Dict with answer, validation metrics, timing, and execution status
-        """
+    async def run(self, request_text: str) -> dict:
+        """Execute the full orchestration pipeline."""
         start = time.time()
-        
-        # Stage 1: Build baseline context
+
         ctx = self.baseline.build(request_text)
-        
-        # Stage 2: Schedule and execute tracks in parallel
+
         tracks = list(self.config.tracks.keys())
         tasks = [self.run_track(t, ctx) for t in tracks]
         results = await asyncio.gather(*tasks)
-        
-        # Stage 3: Merge results with track prioritization
+
         merged = self.merge.merge(results)
-        
-        # Stage 4: Validate synthesized response
-        validation = self.validator.validate(merged)
-        
-        # Stage 5: ZeroHourGate collision detection (optional, for critical systems)
-        # Only applies ZeroHourGate if explicitly enabled in config
+
+        validation_cfg = getattr(self.config, "validation", {})
+        validation = await run_validation(
+            prompt=request_text,
+            direct_text=merged["answer"],
+            adapter=self.adapter,
+            confidence_threshold=validation_cfg.get("confidence_threshold", 60),
+            drift_threshold=validation_cfg.get("drift_threshold", 40.0),
+            second_sample=validation_cfg.get("second_sample", True),
+        )
+
         use_zero_hour_gate = self.config.base.get("enable_zero_hour_gate", False)
-        
+
         if use_zero_hour_gate:
             try:
-                # Create a mock execution target (in production, this would be an actual service)
                 class ExecutionTarget:
                     async def transmit(self, payload):
                         return payload
-                
+
                 execution_target = ExecutionTarget()
-                
-                # Prepare payload with assumptions for ZeroHourGate verification
-                # NOTE: Don't include assumptions that will always fail in test environment
                 synthesized_payload = {
                     "response": merged["answer"],
-                    "assumptions": [],  # Empty by default - no assumptions to check
+                    "assumptions": [],
                     "metadata": {"execution_status": "PENDING"},
-                    "confidence": validation["confidence"]
+                    "confidence": validation.confidence,
                 }
-                
-                # Verify and potentially veto execution
+
                 final_output = await self.zero_hour_gate.verify_and_transmit(
                     synthesized_payload=synthesized_payload,
-                    execution_target=execution_target
+                    execution_target=execution_target,
                 )
-                
-                # Use ZeroHourGate's response if it vetoed, otherwise use merged answer
+
                 if final_output.get("metadata", {}).get("execution_status") == "EXCEPTION_INTERCEPTED":
                     merged["answer"] = final_output["response"]
-                    validation["confidence"] = final_output.get("confidence", 0)
-                    validation["notes"].append(f"ZeroHourGate veto: {final_output.get('metadata', {}).get('veto_reason', 'unknown')}")
+                    validation = ValidationResult(
+                        confidence=final_output.get("confidence", 0),
+                        drift=validation.drift,
+                        passed=False,
+                        signals=validation.signals,
+                        notes=validation.notes + [f"ZeroHourGate veto: {final_output.get('metadata', {}).get('veto_reason', 'unknown')}"],
+                    )
             except Exception as e:
-                # If ZeroHourGate fails, continue with merged answer
-                validation["notes"].append(f"ZeroHourGate skipped: {str(e)}")
-        
-        # Calculate total execution time
+                validation = ValidationResult(
+                    confidence=validation.confidence,
+                    drift=validation.drift,
+                    passed=validation.passed,
+                    signals=validation.signals,
+                    notes=validation.notes + [f"ZeroHourGate skipped: {str(e)}"],
+                )
+
         total_ms = int((time.time() - start) * 1000)
-        
-        # Stage 6: Record metrics
+
+        validation_dict = {
+            "pass": validation.passed,
+            "confidence": validation.confidence,
+            "drift": validation.drift,
+            "signals": validation.signals,
+            "notes": validation.notes,
+        }
+
         try:
             self.metrics.record({
-                "validation": validation,
+                "validation": validation_dict,
                 "timing": {"total_ms": total_ms},
                 "tracks_executed": len(results),
-                "sources": merged.get("sources", [])
+                "sources": merged.get("sources", []),
             })
         except Exception:
             pass
-        
+
         return {
             "answer": merged["answer"],
-            "validation": validation,
+            "validation": validation_dict,
             "timing": {"total_ms": total_ms},
             "tracks": len(results),
-            "sources": merged.get("sources", [])
+            "sources": merged.get("sources", []),
         }

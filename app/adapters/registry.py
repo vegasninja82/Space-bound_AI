@@ -1,49 +1,54 @@
+"""
+Single entry point the rest of the app uses to get a provider. Real
+fallback logic: missing package, missing API key, or a failed health
+check all land on MockAdapter instead of crashing the request.
+"""
+from __future__ import annotations
+import logging
+from app.adapters.base import AdapterError, ProviderAdapter
 from app.adapters.mock_adapter import MockAdapter
-from app.adapters.openai_adapter import OpenAIAdapter
-from app.adapters.anthropic_adapter import AnthropicAdapter
-from app.adapters.gemini_adapter import GeminiAdapter
-
-
-class AdapterRegistry:
-    """Registry for managing provider adapters.
-    
-    Maps provider names to adapter instances with fallback to mock adapter.
+logger = logging.getLogger("spacebound.adapters")
+_BUILDERS = {
+    "openai": lambda: __import__(
+        "app.adapters.openai_adapter", fromlist=["OpenAIAdapter"]
+    ).OpenAIAdapter(),
+    "anthropic": lambda: __import__(
+        "app.adapters.anthropic_adapter", fromlist=["AnthropicAdapter"]
+    ).AnthropicAdapter(),
+    "gemini": lambda: __import__(
+        "app.adapters.gemini_adapter", fromlist=["GeminiAdapter"]
+    ).GeminiAdapter(),
+    "mock": lambda: MockAdapter(),
+}
+_cache: dict[str, ProviderAdapter] = {}
+async def get_adapter(name: str, *, verify_health: bool = False) -> ProviderAdapter:
+    """Build (or reuse) the named adapter. Falls back to mock on any
+    construction failure -- this is what makes `provider: openai` a safe
+    default even when OPENAI_API_KEY isn't set on this machine.
     """
-    
-    def __init__(self, config):
-        self.config = config
-        self.adapters = {
-            "mock": MockAdapter(),
-            "openai": OpenAIAdapter(),
-            "anthropic": AnthropicAdapter(),
-            "gemini": GeminiAdapter(),
-        }
-    
-    def get(self, provider_name):
-        """Get an adapter by provider name.
-        
-        Args:
-            provider_name: Name of the provider (mock, openai, anthropic, gemini)
-        
-        Returns:
-            Adapter instance. Falls back to MockAdapter if provider not found
-            or if the requested adapter is not healthy (e.g., missing API key).
-        """
-        adapter = self.adapters.get(provider_name)
-        
-        if adapter is None:
-            # Provider not in registry, use mock
-            return self.adapters["mock"]
-        
-        # For non-mock adapters, check health and fallback if unavailable
-        if provider_name != "mock":
+    name = (name or "mock").lower()
+    if name in _cache:
+        adapter = _cache[name]
+    else:
+        builder = _BUILDERS.get(name)
+        if builder is None:
+            logger.warning("unknown provider '%s', falling back to mock", name)
+            adapter = MockAdapter()
+        else:
             try:
-                if not adapter.health_check():
-                    # Adapter is not healthy (API key missing, service down, etc.)
-                    # Fall back to mock with a note
-                    return self.adapters["mock"]
-            except Exception:
-                # If health check raises, fall back to mock
-                return self.adapters["mock"]
-        
-        return adapter
+                adapter = builder()
+            except AdapterError as e:
+                logger.warning("provider '%s' unavailable (%s), falling back to mock", name, e)
+                adapter = MockAdapter()
+        _cache[name] = adapter
+    if verify_health and adapter.name != "mock":
+        ok = await adapter.health_check()
+        if not ok:
+            logger.warning("provider '%s' failed health check, falling back to mock", name)
+            return MockAdapter()
+    return adapter
+def available_providers() -> list[str]:
+    return list(_BUILDERS.keys())
+def reset_cache() -> None:
+    """Test hook -- clears cached adapter instances between test cases."""
+    _cache.clear()
