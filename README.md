@@ -12,7 +12,7 @@ The objective is not to replace existing LLMs.
 
 The objective is to orchestrate them.
 
-SPACE_BOUND_AI executes multiple reasoning paths through a unified execution pipeline, validates results, applies analytical perspectives, synthesizes responses, and records execution metrics for later analysis.
+SPACE_BOUND_AI executes multiple reasoning paths through a unified execution pipeline, validates results, applies analytical perspectives, synthesizes responses, and records execution metrics for [...]
 
 The project is designed as a modular foundation for AI orchestration, experimentation, benchmarking, and future multi-provider deployments.
 ---
@@ -37,6 +37,8 @@ Support options:
 - Provider adapter framework (mock + external providers)
 - Extensible configuration via YAML files
 - Lightweight storage using SQLite for metrics and traces
+- Reality Feed system for live state verification
+- ZeroHourGate collision detection and payload veto mechanism
 
 ---
 
@@ -54,10 +56,12 @@ flowchart TD
   D --> G[Synthesis Engine]
   E --> G
   F --> G
-  G --> H[Metrics Storage]
-  H --> I[Final Response]
+  G --> H[ZeroHourGate]
+  H --> I[Metrics Storage]
+  I --> J[Final Response]
   style A fill:#0b5fff66,stroke:#0b5fff,stroke-width:1px
   style G fill:#00cc66cc,stroke:#008f44,stroke-width:1px
+  style H fill:#ff6b6b66,stroke:#ff0000,stroke-width:1px
 ```
 
 ASCII fallback:
@@ -81,6 +85,9 @@ Scheduler
                Synthesis Engine
                       │
                       ▼
+               ZeroHourGate
+                      │
+                      ▼
                Metrics Storage
                       │
                       ▼
@@ -96,6 +103,22 @@ Scheduler
 - Perspective Analysis — applies relevant viewpoints such as engineering, scientific, business, security, legal, ethics, UX, operations, education, risk analysis, and system design.
 
 Each track runs asynchronously, and results are synthesized to produce a higher-quality final response than a single-model call.
+
+---
+
+## Reality Feed & ZeroHourGate
+
+The Reality Feed system monitors live system state and external conditions in real-time:
+- Cached state management with TTL-based freshness detection
+- Timeout boundary enforcement (50ms deadline for sensor reads)
+- Exception interception and fail-closed safety defaults
+- Cross-traffic and signal collision detection
+
+ZeroHourGate applies a final verification layer before response transmission:
+- Validates synthesized payload assumptions against live system state
+- Detects assumption inversions (e.g., "green_light" when reality says false)
+- Intercepts and vetoes execution if critical assumptions are violated
+- Records execution status and veto reasons for observability
 
 ---
 
@@ -263,15 +286,17 @@ Test File | Tests
 tests/test_api.py | 8
 tests/test_core_additional.py | 24
 tests/test_engine.py | 15
+tests/test_crucible.py | 4
 
-Total: 47 tests
+Total: 51 tests
 
 Verification Status
-- ✅ 47 tests passed (as documented)
+- ✅ 51 tests passed (as documented)
 - ✅ 0 failed
 - ✅ Backend verified
 - ✅ Mock adapter verified
 - ✅ API endpoints verified
+- ✅ Reality Feed and ZeroHourGate verified
 
 Run the test suite:
 
