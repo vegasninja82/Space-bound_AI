@@ -16,7 +16,7 @@ The goal is to orchestrate them.
 
 ## 🚀 Live Demo
 
-Try the live cloud deployment of SPACE_BOUND_AI:
+Try the fully functional cloud deployment of SPACE_BOUND_AI:
 
 https://prism-track-app.lovable.app
 
@@ -29,6 +29,7 @@ The live dashboard includes:
 - Coherence scoring
 - Perspective lens controls
 - Metrics and execution tracking
+- Archive and historical run review
 
 The demo allows users to interact with the orchestration engine and observe the complete analysis pipeline in operation.
 
