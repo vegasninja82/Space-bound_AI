@@ -1,117 +1,77 @@
-from app.adapters.base import AdapterBase
-import os
+"""
+Real OpenAI adapter. Needs OPENAI_API_KEY and the `openai` package
+(both already in requirements.txt). Can't be exercised against the live
+API from this sandbox (no network here) -- test it locally with a real
+key before you trust it in the pipeline.
+"""
+from __future__ import annotations
 
-class OpenAIAdapter(AdapterBase):
-    """OpenAI GPT adapter for provider integration.
-    
-    Requires OPENAI_API_KEY environment variable.
-    """
-    
-    def __init__(self):
-        self.api_key = os.environ.get("OPENAI_API_KEY")
-        self.model = "gpt-4o-mini"
-        self.base_url = "https://api.openai.com/v1"
-    
-    def generate(self, prompt, **kwargs):
-        """Generate response using OpenAI API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters (model, temperature, etc.)
-        
-        Returns:
-            Generated text response
-        
-        Raises:
-            RuntimeError: If API key not configured
-        """
-        if not self.api_key:
-            raise RuntimeError(
-                "OpenAI API key not configured. "
-                "Set OPENAI_API_KEY environment variable."
+import os
+import time
+from typing import AsyncIterator
+
+from app.adapters.base import AdapterError, ProviderAdapter
+
+try:
+    from openai import AsyncOpenAI
+except ImportError:  # pragma: no cover
+    AsyncOpenAI = None  # type: ignore
+
+
+class OpenAIAdapter(ProviderAdapter):
+    name = "openai"
+
+    def __init__(self, model: str = "gpt-4o-mini"):
+        if AsyncOpenAI is None:
+            raise AdapterError("openai package is not installed")
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise AdapterError("OPENAI_API_KEY is not set")
+        self._client = AsyncOpenAI(api_key=api_key)
+        self._model = model
+        self._last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    def _messages(self, prompt: str, framing: str = "") -> list[dict]:
+        msgs = []
+        if framing:
+            msgs.append({"role": "system", "content": framing})
+        msgs.append({"role": "user", "content": prompt})
+        return msgs
+
+    async def generate(self, prompt: str, **kwargs) -> str:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        response = await self._client.chat.completions.create(
+            model=kwargs.get("model", self._model),
+            messages=self._messages(prompt, framing),
+        )
+        if response.usage:
+            self._last_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+        return response.choices[0].message.content or ""
+
+    async def stream(self, prompt: str, **kwargs) -> AsyncIterator[str]:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        stream = await self._client.chat.completions.create(
+            model=kwargs.get("model", self._model),
+            messages=self._messages(prompt, framing),
+            stream=True,
+        )
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content
+            if delta:
+                yield delta
+
+    async def health_check(self) -> bool:
+        try:
+            start = time.monotonic()
+            await self._client.chat.completions.create(
+                model=self._model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
             )
-        
-        try:
-            import openai
-            
-            client = openai.OpenAI(api_key=self.api_key)
-            
-            response = client.chat.completions.create(
-                model=kwargs.get("model", self.model),
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=kwargs.get("temperature", 0.7),
-                max_tokens=kwargs.get("max_tokens", 500)
-            )
-            
-            return response.choices[0].message.content
-        except ImportError:
-            raise RuntimeError("openai package not installed. Run: pip install openai")
-        except Exception as e:
-            raise RuntimeError(f"OpenAI API error: {str(e)}")
-    
-    def stream(self, prompt, **kwargs):
-        """Stream response from OpenAI API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters
-        
-        Yields:
-            Response chunks
-        """
-        if not self.api_key:
-            raise RuntimeError("OpenAI API key not configured")
-        
-        try:
-            import openai
-            
-            client = openai.OpenAI(api_key=self.api_key)
-            
-            with client.chat.completions.create(
-                model=kwargs.get("model", self.model),
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=kwargs.get("temperature", 0.7),
-                max_tokens=kwargs.get("max_tokens", 500),
-                stream=True
-            ) as response:
-                for chunk in response:
-                    if chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-        except Exception as e:
-            yield f"Stream error: {str(e)}"
-    
-    def health_check(self):
-        """Check if OpenAI API is accessible.
-        
-        Returns:
-            True if API key is configured and models are accessible
-        """
-        if not self.api_key:
-            return False
-        
-        try:
-            import openai
-            client = openai.OpenAI(api_key=self.api_key)
-            # List models to verify API access
-            client.models.list()
-            return True
+            return time.monotonic() - start < 30
         except Exception:
             return False
-    
-    def token_usage(self):
-        """Return token usage structure.
-        
-        Returns:
-            Dict with prompt_tokens and completion_tokens
-        """
-        return {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
-        }

@@ -1,116 +1,72 @@
-from app.adapters.base import AdapterBase
-import os
+"""
+Real Anthropic adapter. Needs ANTHROPIC_API_KEY and the `anthropic`
+package. Same caveat as the OpenAI adapter: written correctly against
+the documented SDK shape, but untested against the live API from this
+sandbox since it has no network access.
+"""
+from __future__ import annotations
 
-class AnthropicAdapter(AdapterBase):
-    """Anthropic Claude adapter for provider integration.
-    
-    Requires ANTHROPIC_API_KEY environment variable.
-    """
-    
-    def __init__(self):
-        self.api_key = os.environ.get("ANTHROPIC_API_KEY")
-        self.model = "claude-3-5-sonnet-20241022"
-    
-    def generate(self, prompt, **kwargs):
-        """Generate response using Anthropic API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters (model, max_tokens, etc.)
-        
-        Returns:
-            Generated text response
-        
-        Raises:
-            RuntimeError: If API key not configured
-        """
-        if not self.api_key:
-            raise RuntimeError(
-                "Anthropic API key not configured. "
-                "Set ANTHROPIC_API_KEY environment variable."
-            )
-        
+import os
+import time
+from typing import AsyncIterator
+
+from app.adapters.base import AdapterError, ProviderAdapter
+
+try:
+    from anthropic import AsyncAnthropic
+except ImportError:  # pragma: no cover
+    AsyncAnthropic = None  # type: ignore
+
+
+class AnthropicAdapter(ProviderAdapter):
+    name = "anthropic"
+
+    def __init__(self, model: str = "claude-3-5-sonnet-20241022", max_tokens: int = 1024):
+        if AsyncAnthropic is None:
+            raise AdapterError("anthropic package is not installed")
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise AdapterError("ANTHROPIC_API_KEY is not set")
+        self._client = AsyncAnthropic(api_key=api_key)
+        self._model = model
+        self._max_tokens = max_tokens
+        self._last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    async def generate(self, prompt: str, **kwargs) -> str:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        response = await self._client.messages.create(
+            model=kwargs.get("model", self._model),
+            max_tokens=kwargs.get("max_tokens", self._max_tokens),
+            system=framing or None,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if response.usage:
+            self._last_usage = {
+                "prompt_tokens": response.usage.input_tokens,
+                "completion_tokens": response.usage.output_tokens,
+                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+            }
+        return "".join(block.text for block in response.content if block.type == "text")
+
+    async def stream(self, prompt: str, **kwargs) -> AsyncIterator[str]:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        async with self._client.messages.stream(
+            model=kwargs.get("model", self._model),
+            max_tokens=kwargs.get("max_tokens", self._max_tokens),
+            system=framing or None,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+
+    async def health_check(self) -> bool:
         try:
-            import anthropic
-            
-            client = anthropic.Anthropic(api_key=self.api_key)
-            
-            response = client.messages.create(
-                model=kwargs.get("model", self.model),
-                max_tokens=kwargs.get("max_tokens", 500),
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+            start = time.monotonic()
+            await self._client.messages.create(
+                model=self._model,
+                max_tokens=1,
+                messages=[{"role": "user", "content": "ping"}],
             )
-            
-            return response.content[0].text
-        except ImportError:
-            raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
-        except Exception as e:
-            raise RuntimeError(f"Anthropic API error: {str(e)}")
-    
-    def stream(self, prompt, **kwargs):
-        """Stream response from Anthropic API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters
-        
-        Yields:
-            Response chunks
-        """
-        if not self.api_key:
-            raise RuntimeError("Anthropic API key not configured")
-        
-        try:
-            import anthropic
-            
-            client = anthropic.Anthropic(api_key=self.api_key)
-            
-            with client.messages.stream(
-                model=kwargs.get("model", self.model),
-                max_tokens=kwargs.get("max_tokens", 500),
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
-            ) as stream:
-                for text in stream.text_stream:
-                    yield text
-        except Exception as e:
-            yield f"Stream error: {str(e)}"
-    
-    def health_check(self):
-        """Check if Anthropic API is accessible.
-        
-        Returns:
-            True if API key is configured and API is accessible
-        """
-        if not self.api_key:
-            return False
-        
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=self.api_key)
-            # Make a minimal request to verify API access
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=10,
-                messages=[
-                    {"role": "user", "content": "ping"}
-                ]
-            )
-            return response.stop_reason == "end_turn"
+            return time.monotonic() - start < 30
         except Exception:
             return False
-    
-    def token_usage(self):
-        """Return token usage structure.
-        
-        Returns:
-            Dict with input_tokens and output_tokens
-        """
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0
-        }

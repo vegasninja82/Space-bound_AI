@@ -1,116 +1,73 @@
-from app.adapters.base import AdapterBase
-import os
+"""
+Real Gemini adapter, written against `google-generativeai`
+(`import google.generativeai as genai`).
 
-class GeminiAdapter(AdapterBase):
-    """Google Gemini adapter for provider integration.
-    
-    Requires GEMINI_API_KEY environment variable.
-    """
-    
-    def __init__(self):
-        self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.model = "gemini-2.0-flash"
-    
-    def generate(self, prompt, **kwargs):
-        """Generate response using Google Gemini API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters (model, max_tokens, etc.)
-        
-        Returns:
-            Generated text response
-        
-        Raises:
-            RuntimeError: If API key not configured
-        """
-        if not self.api_key:
-            raise RuntimeError(
-                "Gemini API key not configured. "
-                "Set GEMINI_API_KEY environment variable."
-            )
-        
+Flagging this one specifically: Google has shipped more than one Python
+SDK shape for Gemini over the last couple of years (google-generativeai
+vs. the newer google-genai package), and the method names moved between
+them. If `pip install -r requirements.txt` pulls a version whose API
+doesn't match what's below, this is the file to check first -- confirm
+against whichever SDK version is actually pinned before trusting it.
+"""
+from __future__ import annotations
+
+import os
+import time
+from typing import AsyncIterator
+
+from app.adapters.base import AdapterError, ProviderAdapter
+
+try:
+    import google.generativeai as genai
+except ImportError:  # pragma: no cover
+    genai = None  # type: ignore
+
+
+class GeminiAdapter(ProviderAdapter):
+    name = "gemini"
+
+    def __init__(self, model: str = "gemini-1.5-flash"):
+        if genai is None:
+            raise AdapterError("google-generativeai package is not installed")
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise AdapterError("GEMINI_API_KEY is not set")
+        genai.configure(api_key=api_key)
+        self._model_name = model
+        self._last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    def _model(self, framing: str = ""):
+        return genai.GenerativeModel(
+            self._model_name,
+            system_instruction=framing or None,
+        )
+
+    async def generate(self, prompt: str, **kwargs) -> str:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        model = self._model(framing)
+        response = await model.generate_content_async(prompt)
+        usage = getattr(response, "usage_metadata", None)
+        if usage:
+            self._last_usage = {
+                "prompt_tokens": usage.prompt_token_count,
+                "completion_tokens": usage.candidates_token_count,
+                "total_tokens": usage.total_token_count,
+            }
+        return response.text
+
+    async def stream(self, prompt: str, **kwargs) -> AsyncIterator[str]:
+        framing = kwargs.get("framing", kwargs.get("system_prompt", ""))
+        model = self._model(framing)
+        response = await model.generate_content_async(prompt, stream=True)
+        async for chunk in response:
+            if chunk.text:
+                yield chunk.text
+
+    async def health_check(self) -> bool:
         try:
-            import google.generativeai as genai
-            
-            genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(kwargs.get("model", self.model))
-            
-            response = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=kwargs.get("max_tokens", 500),
-                    temperature=kwargs.get("temperature", 0.7)
-                )
-            )
-            
-            return response.text
-        except ImportError:
-            raise RuntimeError("google-generativeai package not installed. Run: pip install google-generativeai")
-        except Exception as e:
-            raise RuntimeError(f"Gemini API error: {str(e)}")
-    
-    def stream(self, prompt, **kwargs):
-        """Stream response from Gemini API.
-        
-        Args:
-            prompt: Input prompt
-            **kwargs: Additional parameters
-        
-        Yields:
-            Response chunks
-        """
-        if not self.api_key:
-            raise RuntimeError("Gemini API key not configured")
-        
-        try:
-            import google.generativeai as genai
-            
-            genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(kwargs.get("model", self.model))
-            
-            response = model.generate_content(
-                prompt,
-                stream=True,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=kwargs.get("max_tokens", 500),
-                    temperature=kwargs.get("temperature", 0.7)
-                )
-            )
-            
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-        except Exception as e:
-            yield f"Stream error: {str(e)}"
-    
-    def health_check(self):
-        """Check if Gemini API is accessible.
-        
-        Returns:
-            True if API key is configured and API is accessible
-        """
-        if not self.api_key:
-            return False
-        
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=self.api_key)
-            model = genai.GenerativeModel(self.model)
-            # Make a minimal request to verify API access
-            response = model.generate_content("ping")
-            return len(response.text) > 0
+            start = time.monotonic()
+            model = self._model()
+            await model.generate_content_async("ping")
+            return time.monotonic() - start < 30
         except Exception:
             return False
-    
-    def token_usage(self):
-        """Return token usage structure.
-        
-        Returns:
-            Dict with input_tokens and output_tokens
-        """
-        return {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0
-        }
