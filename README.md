@@ -45,3 +45,28 @@ Includes:
 # 🧠 Architecture Overview
 
 SPACE_BOUND_AI follows a structured pipeline:
+
+### **EVK (Rust)**  
+Deterministic verification of bundles and manifests.
+
+### **Kill Vector (C)**  
+Runtime enforcement engine:  
+- SIGKILL  
+- forensic logging  
+- unsafe‑PID guard  
+- STUB vs ENFORCE modes
+
+### **ACM (Python)**  
+Adversarial compliance verdict engine.
+
+### **Gauntlet (Python)**  
+12 defensive detectors for lineage, behavior, and anomaly analysis.
+
+### **Dashboard**  
+Live operational telemetry and forensic reporting.
+
+---
+
+# 🚀 Quick Start
+
+### Build—
